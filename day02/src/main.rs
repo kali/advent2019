@@ -1,29 +1,12 @@
 use std::fs;
+use intcode::Machine;
 
-fn run(program: &[usize], i1: usize, i2: usize) -> usize {
-    let mut memory = program.to_vec();
-    memory[1] = i1;
-    memory[2] = i2;
-    let mut pc = 0;
-    loop {
-        match memory[pc] {
-            99 => break,
-            1 => {
-                let v = memory[memory[pc + 1]] + memory[memory[pc + 2]];
-                let offset = memory[pc + 3];
-                memory[offset] = v;
-                pc += 4;
-            }
-            2 => {
-                let v = memory[memory[pc + 1]] * memory[memory[pc + 2]];
-                let offset = memory[pc + 3];
-                memory[offset] = v;
-                pc += 4;
-            }
-            _ => panic!(),
-        }
-    }
-    memory[0]
+fn run(program: &[isize], i1: isize, i2: isize) -> isize {
+    let mut machine = Machine::new(program.to_vec());
+    machine.memory[1] = i1 as isize;
+    machine.memory[2] = i2 as isize;
+    let _ = machine.run(&*vec![]);
+    machine.memory[0]
 }
 
 fn main() {
@@ -31,13 +14,13 @@ fn main() {
         .unwrap()
         .trim()
         .split(",")
-        .map(|i| i.parse::<usize>().unwrap())
-        .collect::<Vec<usize>>();
+        .map(|i| i.parse::<isize>().unwrap())
+        .collect::<Vec<isize>>();
     dbg!(run(&program, 12, 02));
     for i1 in 0..=99 {
         for i2 in 0..=99 {
             if run(&program, i1, i2) == 19690720 {
-                dbg!(i1*100+i2);
+                dbg!(i1 * 100 + i2);
             }
         }
     }
