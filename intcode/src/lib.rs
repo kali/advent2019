@@ -1,5 +1,6 @@
 use std::{fmt, fs, path};
 
+#[derive(Clone)]
 pub struct Machine {
     pub memory: Vec<isize>,
     pub pc: usize,
@@ -8,13 +9,19 @@ pub struct Machine {
 impl fmt::Debug for Machine {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         for i in 0..self.memory.len() {
+            if i % 10 == 0 {
+                write!(fmt, "\n{:04} ", i)?;
+            }
+            if i % 5 == 0 {
+                write!(fmt, "| ")?;
+            }
             if self.pc == i {
-                write!(fmt, "[{}], ", self.memory[i])?;
+                write!(fmt, "[{:5}]", self.memory[i])?;
             } else {
-                write!(fmt, "{}, ", self.memory[i])?;
+                write!(fmt, " {:5} ", self.memory[i])?;
             }
         }
-        Ok(())
+        write!(fmt, "\n")
     }
 }
 
@@ -31,7 +38,7 @@ impl Machine {
             .map(|i| i.parse::<isize>().unwrap())
             .collect::<Vec<isize>>();
         Machine::new(program)
-}
+    }
 
     pub fn imm(&self, offset: usize) -> isize {
         self.memory[self.pc + offset as usize]
@@ -52,7 +59,6 @@ impl Machine {
     }
 
     pub fn run(&mut self, mut inputs: &[isize]) -> Vec<isize> {
-        dbg!(&self);
         let mut outputs = vec![];
         loop {
             let opcode = self.imm(0);
@@ -66,20 +72,39 @@ impl Machine {
                     self.pc += 4;
                 }
                 3 => {
-                    let address = self.imm(1) as usize;
-                    self.memory[address] = inputs[0];
+                    self.arg_store(1, inputs[0]);
                     inputs = &inputs[1..];
                     self.pc += 2;
                 }
                 4 => {
-                    outputs.push(self.memory[self.imm(1) as usize]);
+                    outputs.push(self.arg(1));
                     self.pc += 2;
-                    break;
+                }
+                5 => {
+                    if self.arg(1) == 0 {
+                        self.pc += 3;
+                    } else {
+                        self.pc = self.arg(2) as usize;
+                    }
+                }
+                6 => {
+                    if self.arg(1) != 0 {
+                        self.pc += 3;
+                    } else {
+                        self.pc = self.arg(2) as usize;
+                    }
+                }
+                7 => {
+                    self.arg_store(3, (self.arg(1) < self.arg(2)) as usize as isize);
+                    self.pc += 4;
+                }
+                8 => {
+                    self.arg_store(3, (self.arg(1) == self.arg(2)) as usize as isize);
+                    self.pc += 4;
                 }
                 99 => break,
-                _ => panic!(),
+                x => panic!("unknown instruction {}", x)
             }
-            dbg!(&self);
         }
         outputs
     }
@@ -103,4 +128,16 @@ pub fn test_day05_imm() {
 pub fn test_day05_io() {
     let mut machine = Machine::new(vec![3, 0, 4, 0, 99]);
     assert_eq!(machine.run(&[57]), vec!(57));
+}
+
+#[test]
+pub fn test_day05_part2() {
+    for i in 0..10 {
+        let mut machine = Machine::new(vec![
+            3, 21, 1008, 21, 8, 20, 1005, 20, 22, 107, 8, 21, 20, 1006, 20, 31, 1106, 0, 36, 98, 0,
+            0, 1002, 21, 125, 20, 4, 20, 1105, 1, 46, 104, 999, 1105, 1, 46, 1101, 1000, 1, 20, 4,
+            20, 1105, 1, 46, 98, 99,
+        ]);
+        assert_eq!(machine.run(&[i]), vec!(1000 + (i - 8).signum()));
+    }
 }
