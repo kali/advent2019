@@ -2,6 +2,8 @@ use std::{fmt, fs, path};
 
 #[derive(Clone)]
 pub struct Machine {
+    pub inputs: Vec<isize>,
+    pub outputs: Vec<isize>,
     pub memory: Vec<isize>,
     pub pc: usize,
 }
@@ -27,7 +29,12 @@ impl fmt::Debug for Machine {
 
 impl Machine {
     pub fn new(memory: Vec<isize>) -> Machine {
-        Machine { memory, pc: 0 }
+        Machine {
+            memory,
+            pc: 0,
+            inputs: vec![],
+            outputs: vec![],
+        }
     }
 
     pub fn new_from_file<P: AsRef<path::Path>>(p: P) -> Machine {
@@ -58,55 +65,62 @@ impl Machine {
         self.memory[offset as usize] = v;
     }
 
-    pub fn run(&mut self, mut inputs: &[isize]) -> Vec<isize> {
-        let mut outputs = vec![];
-        loop {
-            let opcode = self.imm(0);
-            match opcode % 100 {
-                1 => {
-                    self.arg_store(3, self.arg(1) + self.arg(2));
-                    self.pc += 4;
-                }
-                2 => {
-                    self.arg_store(3, self.arg(1) * self.arg(2));
-                    self.pc += 4;
-                }
-                3 => {
-                    self.arg_store(1, inputs[0]);
-                    inputs = &inputs[1..];
-                    self.pc += 2;
-                }
-                4 => {
-                    outputs.push(self.arg(1));
-                    self.pc += 2;
-                }
-                5 => {
-                    if self.arg(1) == 0 {
-                        self.pc += 3;
-                    } else {
-                        self.pc = self.arg(2) as usize;
-                    }
-                }
-                6 => {
-                    if self.arg(1) != 0 {
-                        self.pc += 3;
-                    } else {
-                        self.pc = self.arg(2) as usize;
-                    }
-                }
-                7 => {
-                    self.arg_store(3, (self.arg(1) < self.arg(2)) as usize as isize);
-                    self.pc += 4;
-                }
-                8 => {
-                    self.arg_store(3, (self.arg(1) == self.arg(2)) as usize as isize);
-                    self.pc += 4;
-                }
-                99 => break,
-                x => panic!("unknown instruction {}", x)
+    pub fn done(&self) -> bool {
+        self.imm(0) == 99
+    }
+
+    pub fn step(&mut self) {
+        let opcode = self.imm(0);
+        match opcode % 100 {
+            1 => {
+                self.arg_store(3, self.arg(1) + self.arg(2));
+                self.pc += 4;
             }
+            2 => {
+                self.arg_store(3, self.arg(1) * self.arg(2));
+                self.pc += 4;
+            }
+            3 => {
+                let v = self.inputs.remove(0);
+                self.arg_store(1, v);
+                self.pc += 2;
+            }
+            4 => {
+                self.outputs.push(self.arg(1));
+                self.pc += 2;
+            }
+            5 => {
+                if self.arg(1) == 0 {
+                    self.pc += 3;
+                } else {
+                    self.pc = self.arg(2) as usize;
+                }
+            }
+            6 => {
+                if self.arg(1) != 0 {
+                    self.pc += 3;
+                } else {
+                    self.pc = self.arg(2) as usize;
+                }
+            }
+            7 => {
+                self.arg_store(3, (self.arg(1) < self.arg(2)) as usize as isize);
+                self.pc += 4;
+            }
+            8 => {
+                self.arg_store(3, (self.arg(1) == self.arg(2)) as usize as isize);
+                self.pc += 4;
+            }
+            x => panic!("unknown instruction {}", x),
         }
-        outputs
+    }
+
+    pub fn run(&mut self, inputs: &[isize]) -> &[isize] {
+        self.inputs.extend(inputs);
+        while !self.done() {
+            self.step()
+        }
+        &*self.outputs
     }
 }
 
@@ -127,7 +141,7 @@ pub fn test_day05_imm() {
 #[test]
 pub fn test_day05_io() {
     let mut machine = Machine::new(vec![3, 0, 4, 0, 99]);
-    assert_eq!(machine.run(&[57]), vec!(57));
+    assert_eq!(machine.run(&[57]), &[57]);
 }
 
 #[test]
@@ -138,6 +152,6 @@ pub fn test_day05_part2() {
             0, 1002, 21, 125, 20, 4, 20, 1105, 1, 46, 104, 999, 1105, 1, 46, 1101, 1000, 1, 20, 4,
             20, 1105, 1, 46, 98, 99,
         ]);
-        assert_eq!(machine.run(&[i]), vec!(1000 + (i - 8).signum()));
+        assert_eq!(machine.run(&[i]), &[1000 + (i - 8).signum()]);
     }
 }
