@@ -4,23 +4,30 @@ use std::{fmt, fs, path};
 pub struct Machine {
     pub inputs: Vec<isize>,
     pub outputs: Vec<isize>,
-    pub memory: Vec<isize>,
+    pub mem: Vec<isize>,
     pub pc: usize,
+    pub base: isize,
 }
 
 impl fmt::Debug for Machine {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        for i in 0..self.memory.len() {
-            if i % 10 == 0 {
-                write!(fmt, "\n{:04} ", i)?;
+        writeln!(fmt, "\npc: {} base: {}", self.pc, self.base)?;
+        writeln!(fmt, "inputs: {:?}", self.inputs)?;
+        writeln!(fmt, "outputs: {:?}", self.outputs)?;
+        for i in 0..self.mem.len() {
+            if i % 20 == 0 {
+                if i > 0 {
+                    write!(fmt, "\n")?;
+                }
+                write!(fmt, "{:04} ", i)?;
             }
             if i % 5 == 0 {
                 write!(fmt, "| ")?;
             }
             if self.pc == i {
-                write!(fmt, "[{:5}]", self.memory[i])?;
+                write!(fmt, "[{:5}]", self.mem[i])?;
             } else {
-                write!(fmt, " {:5} ", self.memory[i])?;
+                write!(fmt, " {:5} ", self.mem[i])?;
             }
         }
         write!(fmt, "\n")
@@ -28,9 +35,10 @@ impl fmt::Debug for Machine {
 }
 
 impl Machine {
-    pub fn new(memory: Vec<isize>) -> Machine {
+    pub fn new(mem: Vec<isize>) -> Machine {
         Machine {
-            memory,
+            mem,
+            base: 0,
             pc: 0,
             inputs: vec![],
             outputs: vec![],
@@ -47,26 +55,49 @@ impl Machine {
         Machine::new(program)
     }
 
-    pub fn imm(&self, offset: usize) -> isize {
-        self.memory[self.pc + offset as usize]
+    pub fn load(&self, at: usize) -> &isize {
+        self.mem.get(at).unwrap_or(&0)
     }
 
-    pub fn arg(&self, offset: usize) -> isize {
-        let opcode = self.imm(0) as usize;
-        if opcode / 10usize.pow(offset as u32 + 1) % 10 == 1 {
-            self.imm(offset)
-        } else {
-            self.memory[self.imm(offset) as usize]
+    pub fn store(&mut self, at: usize, v: isize) {
+        while at >= self.mem.len() {
+            self.mem.push(0)
         }
+        self.mem[at] = v
     }
 
-    pub fn arg_store(&mut self, offset: usize, v: isize) {
-        let offset = self.imm(offset);
-        self.memory[offset as usize] = v;
+    pub fn imm(&self, offset: usize) -> &isize {
+        self.load(self.pc + offset as usize)
+    }
+
+    pub fn arg(&self, arg: usize) -> &isize {
+        let opcode = *self.imm(0) as usize;
+        let mode = opcode / 10usize.pow(arg as u32 + 1) % 10;
+        let imm = self.imm(arg);
+        let v = match mode {
+            0 => self.load(*imm as usize),
+            1 => imm,
+            2 => self.load((self.base + imm) as usize),
+            s => panic!("unimplemented addressing mode {}", s),
+        };
+        v
+
+    }
+
+    pub fn arg_store(&mut self, arg: usize, v: isize) {
+        let opcode = *self.imm(0) as usize;
+        let mode = opcode / 10usize.pow(arg as u32 + 1) % 10;
+        let imm = self.imm(arg);
+        let at = match mode {
+            0 => *imm as usize,
+            2 => (self.base + imm) as usize,
+            s => panic!("unimplemented addressing mode {}", s),
+        };
+        self.store(at, v)
     }
 
     pub fn done(&self) -> bool {
-        self.imm(0) == 99
+        self.imm(0) == &99
     }
 
     pub fn step(&mut self) {
@@ -86,21 +117,21 @@ impl Machine {
                 self.pc += 2;
             }
             4 => {
-                self.outputs.push(self.arg(1));
+                self.outputs.push(*self.arg(1));
                 self.pc += 2;
             }
             5 => {
-                if self.arg(1) == 0 {
+                if *self.arg(1) == 0 {
                     self.pc += 3;
                 } else {
-                    self.pc = self.arg(2) as usize;
+                    self.pc = *self.arg(2) as usize;
                 }
             }
             6 => {
-                if self.arg(1) != 0 {
+                if *self.arg(1) != 0 {
                     self.pc += 3;
                 } else {
-                    self.pc = self.arg(2) as usize;
+                    self.pc = *self.arg(2) as usize;
                 }
             }
             7 => {
@@ -111,6 +142,10 @@ impl Machine {
                 self.arg_store(3, (self.arg(1) == self.arg(2)) as usize as isize);
                 self.pc += 4;
             }
+            9 => {
+                self.base += *self.arg(1);
+                self.pc += 2;
+            }
             x => panic!("unknown instruction {}", x),
         }
     }
@@ -118,7 +153,7 @@ impl Machine {
     pub fn run(&mut self, inputs: &[isize]) -> &[isize] {
         self.inputs.extend(inputs);
         while !self.done() {
-            self.step()
+            self.step();
         }
         &*self.outputs
     }
@@ -128,14 +163,14 @@ impl Machine {
 pub fn test_day02() {
     let mut machine = Machine::new(vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50]);
     machine.run(&[]);
-    assert_eq!(machine.memory[0], 3500);
+    assert_eq!(machine.load(0), &3500);
 }
 
 #[test]
 pub fn test_day05_imm() {
     let mut machine = Machine::new(vec![1002, 4, 3, 4, 33]);
     machine.run(&[]);
-    assert_eq!(machine.memory[4], 99);
+    assert_eq!(machine.load(4), &99);
 }
 
 #[test]
@@ -154,4 +189,31 @@ pub fn test_day05_part2() {
         ]);
         assert_eq!(machine.run(&[i]), &[1000 + (i - 8).signum()]);
     }
+}
+
+#[test]
+pub fn test_day09_rel() {
+    let prg = vec![
+        109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+    ];
+    let mut machine = Machine::new(prg.to_vec());
+    machine.run(&[]);
+    assert_eq!(machine.outputs, prg);
+}
+
+#[test]
+pub fn test_day09_16digits() {
+    let prg = vec![1102, 34915192, 34915192, 7, 4, 7, 99, 0];
+    let mut machine = Machine::new(prg.to_vec());
+    machine.run(&[]);
+    assert_eq!(machine.outputs.len(), 1);
+    assert_eq!(format!("{}", machine.outputs[0]).len(), 16);
+}
+
+#[test]
+pub fn test_day09_bignum() {
+    let prg = vec![104,1125899906842624,99];
+    let mut machine = Machine::new(prg.to_vec());
+    machine.run(&[]);
+    assert_eq!(machine.outputs, vec!(1125899906842624));
 }
