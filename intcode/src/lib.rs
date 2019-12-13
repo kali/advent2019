@@ -100,6 +100,10 @@ impl Machine {
         self.imm(0) == &99
     }
 
+    pub fn waiting(&self) -> bool {
+        self.imm(0) % 100 == 3 && self.inputs.len() == 0
+    }
+
     pub fn step(&mut self) {
         let opcode = self.imm(0);
         match opcode % 100 {
