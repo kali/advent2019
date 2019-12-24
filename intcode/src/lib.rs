@@ -162,6 +162,12 @@ impl Machine {
         &*self.outputs
     }
 
+    pub fn steps(&mut self) {
+        while !self.done() && !self.waiting() {
+            self.step();
+        }
+    }
+
     pub fn repl(&mut self) {
         use std::io::{BufRead, BufReader, Write};
         let mut input = BufReader::new(std::io::stdin());
