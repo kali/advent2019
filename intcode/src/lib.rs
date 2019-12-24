@@ -161,6 +161,26 @@ impl Machine {
         }
         &*self.outputs
     }
+
+    pub fn repl(&mut self) {
+        use std::io::{BufRead, BufReader, Write};
+        let mut input = BufReader::new(std::io::stdin());
+        while !self.done() {
+            for o in self.outputs.drain(..) {
+                if o < 128 {
+                    std::io::stdout().write(&[o as u8]).unwrap();
+                } else {
+                    dbg!(o);
+                }
+            }
+            if self.waiting() {
+                let mut line = String::new();
+                input.read_line(&mut line).unwrap();
+                self.inputs.extend(line.bytes().map(|b| b as isize));
+            }
+            self.step();
+        }
+    }
 }
 
 #[test]
