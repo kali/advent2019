@@ -162,10 +162,30 @@ impl Machine {
         &*self.outputs
     }
 
+    pub fn input<S: AsRef<str>>(&mut self, s: S) {
+        self.inputs.extend(s.as_ref().bytes().map(|b| b as isize));
+    }
+
+    pub fn inputln<S: AsRef<str>>(&mut self, s: S) {
+        self.input(s);
+        self.inputs.push(10);
+    }
     pub fn steps(&mut self) {
         while !self.done() && !self.waiting() {
             self.step();
         }
+    }
+
+    pub fn steps_then_dump(&mut self) {
+        self.steps();
+        print!(
+            "{}",
+            self.outputs
+                .drain(..)
+                .map(|c| c as u8 as char)
+                .collect::<String>()
+        );
+
     }
 
     pub fn repl(&mut self) {
