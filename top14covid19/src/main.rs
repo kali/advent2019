@@ -87,9 +87,8 @@ fn main() -> anyhow::Result<()> {
     for (ix, line) in ranking.iter().enumerate() {
         let points = ((line.points as f32 / line.played as f32) * 10.) as usize;
         let mut s = format!(
-            "{:2}  {:3}  {:25} {:3} / {:.3} ≈ {:.2}   ",
+            "{:2} {:15} {:3} / {:.3} ≈ {:.2}   ",
             ix + 1,
-            line.code,
             line.name,
             line.points,
             line.played,
